@@ -18,7 +18,7 @@ const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
         // origin: '*',
-         origin: 'https://your-frontend.vercel.app',
+         origin: 'https://whiteboard-2qe0646so-praveens-projects-12e70f4f.vercel.app',
     methods: ['GET', 'POST'],
     credentials: true
 
