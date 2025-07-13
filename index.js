@@ -33,10 +33,11 @@ app.use(cookieParser());
 app.use(cors({
     // origin: true,
     // credentials: true,
-    // exposedHeaders: ['Authorization'],
+    
 
      origin: 'https://whiteboard-2qe0646so-praveens-projects-12e70f4f.vercel.app',
     credentials: true,
+    exposedHeaders: ['Authorization'],
 }));
 app.use(express.json({ limit: '5mb' }));
 
