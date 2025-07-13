@@ -25,7 +25,10 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
     cors: {
-        origin: 'https://whiteboard-5aa7e73sn-praveens-projects-12e70f4f.vercel.app',
+        origin: [
+        'https://whiteboard-bge2jgm4f-praveens-projects-12e70f4f.vercel.app',
+        'https://whiteboard-app-zeta.vercel.app'
+    ],
         methods: ['GET', 'POST'],
         credentials: true
     }
@@ -48,7 +51,10 @@ app.use(cookieParser());
 
 
 app.use(cors({
-    origin: 'https://whiteboard-5aa7e73sn-praveens-projects-12e70f4f.vercel.app',
+      origin: [
+        'https://whiteboard-bge2jgm4f-praveens-projects-12e70f4f.vercel.app',
+        'https://whiteboard-app-zeta.vercel.app'
+    ],
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization'],
     exposedHeaders: ['Authorization'],
