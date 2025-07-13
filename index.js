@@ -17,10 +17,10 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        // origin: '*',
-         origin: 'https://whiteboard-2qe0646so-praveens-projects-12e70f4f.vercel.app',
-    methods: ['GET', 'POST'],
-    credentials: true
+        origin: '*',
+    //      origin: 'https://whiteboard-2qe0646so-praveens-projects-12e70f4f.vercel.app',
+    // methods: ['GET', 'POST'],
+    // credentials: true
 
     }
 });
@@ -31,13 +31,13 @@ const canvasData = {};
 
 app.use(cookieParser());
 app.use(cors({
-    // origin: true,
-    // credentials: true,
-    
-
-     origin: 'https://whiteboard-2qe0646so-praveens-projects-12e70f4f.vercel.app',
+    origin: true,
     credentials: true,
+    
     exposedHeaders: ['Authorization'],
+
+    //  origin: 'https://whiteboard-2qe0646so-praveens-projects-12e70f4f.vercel.app',
+    // credentials: true,
 }));
 app.use(express.json({ limit: '5mb' }));
 
