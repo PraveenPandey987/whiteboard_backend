@@ -14,9 +14,23 @@ const PORT = process.env.PORT || 3000;
 
 const app = express();
 const server = http.createServer(app);
+// const io = new Server(server, {
+//     cors: {
+//         origin: '*',
+//     }
+// });
+
+
 const io = new Server(server, {
     cors: {
-        origin: '*',
+        origin: [
+            'https://whiteboard-app-zeta.vercel.app',
+            'http://localhost:5173',
+            'http://localhost:3000',
+            'http://localhost:3001'
+        ],
+        methods: ['GET', 'POST'],
+        credentials: true
     }
 });
 
@@ -71,16 +85,32 @@ const scheduleCanvasUpdate = (canvasId, elements) => {
 };
 
 app.use(cookieParser());
+// app.use(cors({
+//     origin: true,
+//     credentials: true,
+//     exposedHeaders: ['Authorization'],
+// }));
+
+
 app.use(cors({
-    origin: true,
+    origin: [
+        'https://whiteboard-app-zeta.vercel.app',
+        'http://localhost:5173',
+        'http://localhost:3000',
+        'http://localhost:3001'
+    ],
     credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization'],
     exposedHeaders: ['Authorization'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH','OPTIONS']
 }));
+
+
 
 app.use(express.json({ limit: '5mb' }));
 
 connectToDatabse();
-
+app.options('*', cors());
 app.get('/', (req, res) => {
     res.send('<h1>Welcome</h1>');
 });
