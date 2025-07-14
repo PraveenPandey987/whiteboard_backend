@@ -26,13 +26,15 @@ const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
         origin: [
-        'https://whiteboard-bge2jgm4f-praveens-projects-12e70f4f.vercel.app',
-        'https://whiteboard-app-zeta.vercel.app'
-    ],
+            'https://whiteboard-bge2jgm4f-praveens-projects-12e70f4f.vercel.app',
+            'https://whiteboard-app-zeta.vercel.app',
+            'http://localhost:5173'
+        ],
         methods: ['GET', 'POST'],
         credentials: true
     }
 });
+
 
 
 
@@ -51,14 +53,16 @@ app.use(cookieParser());
 
 
 app.use(cors({
-      origin: [
+    origin: [
         'https://whiteboard-bge2jgm4f-praveens-projects-12e70f4f.vercel.app',
-        'https://whiteboard-app-zeta.vercel.app'
+        'https://whiteboard-app-zeta.vercel.app',
+        'http://localhost:5173'
     ],
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization'],
     exposedHeaders: ['Authorization'],
 }));
+
 
 
 app.use(express.json({ limit: '5mb' }));
@@ -67,6 +71,10 @@ app.use(express.json({ limit: '5mb' }));
 
 connectToDatabse();
 
+
+app.get('/', (req, res) => {
+    res.send('<h1>Welcome</h1>');
+});
 app.use('/api/users', userRoutes);
 app.use('/api/canvas', canvasRoutes);
 app.use('/api/token', refreshTokenRoutes);
