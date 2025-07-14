@@ -12,79 +12,82 @@ const jwt = require('jsonwebtoken');
 const Canvas = require('./models/canvas.js');
 const PORT = process.env.PORT || 3000;
 
-
 const app = express();
 const server = http.createServer(app);
-// const io = new Server(server, {
-//     cors: {
-//         origin: '*',
-  
-
-//     }
-// });
-
 const io = new Server(server, {
     cors: {
-        origin: [
-            'https://whiteboard-bge2jgm4f-praveens-projects-12e70f4f.vercel.app',
-            'https://whiteboard-app-zeta.vercel.app',
-            'http://localhost:5173'
-        ],
-        methods: ['GET', 'POST'],
-        credentials: true
+        origin: '*',
     }
 });
 
+// Improved canvas data management with cleanup
+const canvasData = new Map();
+const canvasUsers = new Map(); // Track active users per canvas
+const userCanvasMap = new Map(); // socketId -> canvasId
 
+// Database update queue to prevent race conditions
+const updateQueue = new Map(); // canvasId -> timeout
 
+// Cleanup inactive canvas data
+const cleanupCanvasData = (canvasId) => {
+    const users = canvasUsers.get(canvasId) || new Set();
+    if (users.size === 0) {
+        // No active users, clean up canvas data after delay
+        setTimeout(() => {
+            const currentUsers = canvasUsers.get(canvasId) || new Set();
+            if (currentUsers.size === 0) {
+                canvasData.delete(canvasId);
+                canvasUsers.delete(canvasId);
+                console.log(`Cleaned up canvas data for ${canvasId}`);
+            }
+        }, 30000); // 30 seconds delay
+    }
+};
 
-const canvasData = {};
-
+// Debounced database update
+const scheduleCanvasUpdate = (canvasId, elements) => {
+    // Clear existing timeout
+    if (updateQueue.has(canvasId)) {
+        clearTimeout(updateQueue.get(canvasId));
+    }
+    
+    // Schedule new update
+    const timeout = setTimeout(async () => {
+        try {
+            await Canvas.findByIdAndUpdate(
+                canvasId, 
+                { elements }, 
+                { new: true, useFindAndModify: false }
+            );
+            updateQueue.delete(canvasId);
+            console.log(`Canvas ${canvasId} updated in database`);
+        } catch (error) {
+            console.error(`Error updating canvas ${canvasId}:`, error);
+            updateQueue.delete(canvasId);
+        }
+    }, 1000); // 1 second debounce
+    
+    updateQueue.set(canvasId, timeout);
+};
 
 app.use(cookieParser());
-// app.use(cors({
-//     origin: true,
-//     credentials: true,
-    
-//     exposedHeaders: ['Authorization'],
-
-    
-// }));
-
-
 app.use(cors({
-    origin: [
-        'https://whiteboard-bge2jgm4f-praveens-projects-12e70f4f.vercel.app',
-        'https://whiteboard-app-zeta.vercel.app',
-        'http://localhost:5173'
-    ],
+    origin: true,
     credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization'],
     exposedHeaders: ['Authorization'],
 }));
 
-
-
 app.use(express.json({ limit: '5mb' }));
 
-
-
 connectToDatabse();
-
 
 app.get('/', (req, res) => {
     res.send('<h1>Welcome</h1>');
 });
+
 app.use('/api/users', userRoutes);
 app.use('/api/canvas', canvasRoutes);
 app.use('/api/token', refreshTokenRoutes);
-
-
-
-// Add this to your server index.js
-
-// Track user-canvas relationships
-const userCanvasMap = new Map(); // socketId -> canvasId
 
 io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
@@ -112,19 +115,27 @@ io.on('connection', (socket) => {
             // Leave previous canvas if any
             const previousCanvas = userCanvasMap.get(socket.id);
             if (previousCanvas) {
-                socket.leave(previousCanvas);
-                console.log(`User ${socket.id} left previous canvas ${previousCanvas}`);
+                await handleLeaveCanvas(socket, previousCanvas);
             }
 
             // Join new canvas
             socket.join(canvasId);
             userCanvasMap.set(socket.id, canvasId);
+            
+            // Track users per canvas
+            if (!canvasUsers.has(canvasId)) {
+                canvasUsers.set(canvasId, new Set());
+            }
+            canvasUsers.get(canvasId).add(socket.id);
+            
             console.log(`User ${socket.id} joined canvas ${canvasId}`);
 
             // Send canvas data
-            if (canvasData[canvasId]) {
-                socket.emit("loadCanvas", canvasData[canvasId]);
+            if (canvasData.has(canvasId)) {
+                socket.emit("loadCanvas", canvasData.get(canvasId));
             } else {
+                // Load from database and cache
+                canvasData.set(canvasId, canvas.elements);
                 socket.emit("loadCanvas", canvas.elements);
             }
 
@@ -134,11 +145,54 @@ io.on('connection', (socket) => {
         }
     });
 
-    // Add explicit leave canvas event
-    socket.on("leaveCanvas", ({ canvasId }) => {
-        console.log(`User ${socket.id} leaving canvas ${canvasId}`);
-        socket.leave(canvasId);
-        userCanvasMap.delete(socket.id);
+    // Helper function to handle leaving canvas
+    const handleLeaveCanvas = async (socket, canvasId) => {
+        try {
+            console.log(`User ${socket.id} leaving canvas ${canvasId}`);
+            
+            // Remove from socket room
+            socket.leave(canvasId);
+            
+            // Update user tracking
+            if (canvasUsers.has(canvasId)) {
+                canvasUsers.get(canvasId).delete(socket.id);
+            }
+            
+            // Remove from user-canvas mapping
+            if (userCanvasMap.get(socket.id) === canvasId) {
+                userCanvasMap.delete(socket.id);
+            }
+            
+            // Schedule cleanup if no users left
+            cleanupCanvasData(canvasId);
+            
+            // Force any pending database updates
+            if (updateQueue.has(canvasId)) {
+                clearTimeout(updateQueue.get(canvasId));
+                const elements = canvasData.get(canvasId);
+                if (elements) {
+                    try {
+                        await Canvas.findByIdAndUpdate(
+                            canvasId, 
+                            { elements }, 
+                            { new: true, useFindAndModify: false }
+                        );
+                        console.log(`Final update for canvas ${canvasId} completed`);
+                    } catch (error) {
+                        console.error(`Error in final update for canvas ${canvasId}:`, error);
+                    }
+                }
+                updateQueue.delete(canvasId);
+            }
+            
+        } catch (error) {
+            console.error("Error in handleLeaveCanvas:", error);
+        }
+    };
+
+    // Explicit leave canvas event
+    socket.on("leaveCanvas", async ({ canvasId }) => {
+        await handleLeaveCanvas(socket, canvasId);
     });
 
     socket.on("drawingUpdate", async ({ canvasId, elements, senderId }) => {
@@ -150,25 +204,25 @@ io.on('connection', (socket) => {
                 return;
             }
 
-            canvasData[canvasId] = elements;
+            // Update in-memory data
+            canvasData.set(canvasId, elements);
+            
+            // Broadcast to other users in the canvas
             socket.to(canvasId).emit("receiveDrawingUpdate", { elements, senderId });
 
-            const canvas = await Canvas.findById(canvasId);
-            if (canvas) {
-                await Canvas.findByIdAndUpdate(canvasId, { elements }, { new: true, useFindAndModify: false });
-            }
+            // Schedule debounced database update
+            scheduleCanvasUpdate(canvasId, elements);
 
         } catch (error) {
             console.error("Error in drawingUpdate:", error);
         }
     });
 
-    socket.on('disconnect', () => {
+    socket.on('disconnect', async () => {
         try {
             const canvasId = userCanvasMap.get(socket.id);
             if (canvasId) {
-                console.log(`User ${socket.id} disconnected from canvas ${canvasId}`);
-                userCanvasMap.delete(socket.id);
+                await handleLeaveCanvas(socket, canvasId);
             }
             console.log('User disconnected:', socket.id);
         } catch (error) {
@@ -177,6 +231,32 @@ io.on('connection', (socket) => {
     });
 });
 
+// Graceful shutdown
+process.on('SIGINT', async () => {
+    console.log('Gracefully shutting down...');
+    
+    // Force all pending database updates
+    const pendingUpdates = Array.from(updateQueue.entries()).map(async ([canvasId, timeout]) => {
+        clearTimeout(timeout);
+        const elements = canvasData.get(canvasId);
+        if (elements) {
+            try {
+                await Canvas.findByIdAndUpdate(
+                    canvasId, 
+                    { elements }, 
+                    { new: true, useFindAndModify: false }
+                );
+                console.log(`Final update for canvas ${canvasId} completed`);
+            } catch (error) {
+                console.error(`Error in final update for canvas ${canvasId}:`, error);
+            }
+        }
+    });
+    
+    await Promise.all(pendingUpdates);
+    process.exit(0);
+});
+
 server.listen(PORT, () => {
-    console.log("server is listening on port 8000");
-})
+    console.log(`Server is listening on port ${PORT}`);
+});
