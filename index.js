@@ -23,12 +23,13 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
     cors: {
-        origin: [
-            'https://whiteboard-app-zeta.vercel.app',
-            'http://localhost:5173',
-            'http://localhost:3000',
-            'http://localhost:3001'
-        ],
+        // origin: [
+        //     'https://whiteboard-app-zeta.vercel.app',
+        //     'http://localhost:5173',
+        //     'http://localhost:3000',
+        //     'http://localhost:3001'
+        // ],
+        origin: '*',
         methods: ['GET', 'POST'],
         credentials: true
     }
@@ -93,12 +94,13 @@ app.use(cookieParser());
 
 
 app.use(cors({
-    origin: [
-        'https://whiteboard-app-zeta.vercel.app',
-        'http://localhost:5173',
-        'http://localhost:3000',
-        'http://localhost:3001'
-    ],
+    // origin: [
+    //     'https://whiteboard-app-zeta.vercel.app',
+    //     'http://localhost:5173',
+    //     'http://localhost:3000',
+    //     'http://localhost:3001'
+    // ],
+    origin: '*',
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization'],
     exposedHeaders: ['Authorization'],
@@ -110,7 +112,7 @@ app.use(cors({
 app.use(express.json({ limit: '5mb' }));
 
 connectToDatabse();
-app.options('*', cors());
+
 app.get('/', (req, res) => {
     res.send('<h1>Welcome</h1>');
 });
