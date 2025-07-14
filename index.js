@@ -23,6 +23,7 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
     cors: {
+         transports: ['polling'],
         origin: [
             'https://whiteboard-app-zeta.vercel.app',
             'http://localhost:5173',
