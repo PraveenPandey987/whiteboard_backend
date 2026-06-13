@@ -139,4 +139,42 @@ const newCanvas = await canvas.save();
 res.status(201).json(newCanvas);
 
 }
-module.exports = { shareCanvas,getUserCanvases, loadCanvas, createCanvas, updateCanvas, deleteCanvas};
+
+const revokeCanvasAccess = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const canvasId = req.params.id;
+        const { email } = req.body;
+
+        const userToRevoke = await User.findOne({ email });
+        if (!userToRevoke) {
+            return res.status(404).json({ error: "User with this email not found" });
+        }
+
+        const canvas = await Canvas.findById(canvasId);
+        if (!canvas || canvas.owner.toString() !== userId.toString()) {
+            return res.status(403).json({ error: "Only the owner can revoke access to this canvas" });
+        }
+
+        const revokeUserId = userToRevoke._id;
+
+        // Remove from shared and sharedEmail arrays
+        canvas.shared = canvas.shared.filter(id => id.toString() !== revokeUserId.toString());
+        canvas.sharedEmail = canvas.sharedEmail.filter(e => e.toLowerCase() !== email.toLowerCase());
+
+        const newCanvas = await canvas.save();
+        res.status(200).json(newCanvas);
+    } catch (error) {
+        res.status(500).json({ error: "Failed to revoke access", details: error.message });
+    }
+};
+
+module.exports = { 
+  shareCanvas,
+  getUserCanvases,
+  loadCanvas,
+  createCanvas,
+  updateCanvas,
+  deleteCanvas,
+  revokeCanvasAccess
+};
